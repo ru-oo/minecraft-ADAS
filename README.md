@@ -62,27 +62,47 @@ API 센서는 좌표 기반이라 정확하지만 "게임 내부 정보"다. 둘
 
 ## 시스템 아키텍처
 
-```
-              ┌────────────────────────── Python 비전 서버 (vision_server.py) ─────────────────────────┐
-              │                                                                                          │
-  게임 화면 ──┼──▶ mss 화면 캡처 ──▶ YOLO (ultralytics, best.pt)  ─── 몹 박스 + 클래스 ──┐                │
- (창/영역)    │                   └▶ CNN (EfficientNet-B0)        ─── 지형 위험도(scene)  ├──▶ 결과 묶음   │
-              │                                                                          │                │
-              │   OpenCV HUD 창(박스·지형·미니맵 시각화)  ◀───────────────────────────────┘                │
-              └───────────────┬──────────────────────────────────────────────────────────┬───────────────┘
-                              │ WebSocket(:5001) push (vision)                              ▲ WS push (grid)
-                              ▼                                                             │ Flask(:5000): /collect /health
-              ┌────────────────────────────── Node.js 봇 (bot/) ───────────────────────────┴───────────────┐
-              │                                                                                              │
-              │  VisionClient ─┐                                                                             │
-              │  MobRadar ─────┤  센서 퓨전                                                                  │
-              │  LocalGridMap ─┤   (좌표 기반 API가 회피 주도, 비전이 교차검증/보강)                          │
-              │                ▼                                                                             │
-              │        ┌──────────────────┐      ┌───────────────────────────────────────────────┐         │
-              │        │  반응형 Arbiter   │ ───▶ │  Navigator (mineflayer-pathfinder, A*)        │ ──▶ 봇  │
-              │        │  (단일 결정점)    │      │  경로 계획 + 반응 기동(우회/후퇴/반사)         │         │
-              │        └──────────────────┘      └───────────────────────────────────────────────┘         │
-              └──────────────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    screen["게임 화면<br/>(창/영역)"]
+
+    subgraph vision["Python 비전 서버 (vision_server.py)"]
+        direction TB
+        mss["mss 화면 캡처"]
+        yolo["YOLO<br/>(ultralytics, best.pt)"]
+        cnn["CNN<br/>(EfficientNet-B0)"]
+        bundle["결과 묶음"]
+        hud["OpenCV HUD 창<br/>(박스·지형·미니맵 시각화)"]
+
+        mss --> yolo
+        mss --> cnn
+        yolo -- "몹 박스 + 클래스" --> bundle
+        cnn -- "지형 위험도(scene)" --> bundle
+        bundle --> hud
+    end
+
+    subgraph bot["Node.js 봇 (bot/)"]
+        direction TB
+        vc["VisionClient"]
+        mr["MobRadar"]
+        grid["LocalGridMap"]
+        fusion["센서 퓨전<br/>(좌표 기반 API가 회피 주도,<br/>비전이 교차검증/보강)"]
+        arbiter["반응형 Arbiter<br/>(단일 결정점)"]
+        nav["Navigator<br/>(mineflayer-pathfinder, A*)<br/>경로 계획 + 반응 기동<br/>(우회/후퇴/반사)"]
+        agent(["봇"])
+
+        vc --> fusion
+        mr --> fusion
+        grid --> fusion
+        fusion --> arbiter
+        arbiter --> nav
+        nav --> agent
+    end
+
+    screen --> mss
+    bundle -- "WebSocket(:5001) push (vision)" --> vc
+    grid -- "WS push (grid)" --> bundle
+    bundle -. "Flask(:5000): /collect /health" .- bot
 ```
 
 **역할 분리**

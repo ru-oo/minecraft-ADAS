@@ -16,7 +16,7 @@
 
 <table>
   <tr>
-    <td align="center"><img src="assets/star.png" width="380"><br>출발</td>
+    <td align="center"><img src="assets/start.png" width="380"><br>출발</td>
     <td align="center"><img src="assets/goal.png" width="380"><br>도착</td>
   </tr>
 </table>

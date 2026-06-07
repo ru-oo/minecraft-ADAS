@@ -1,0 +1,6 @@
+0_safe
+1_blocked
+2_danger
+2_danger_cliff
+2_danger_lava
+2_danger_water

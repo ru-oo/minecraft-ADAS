@@ -237,7 +237,7 @@ CLI로 채팅 없이 주행 테스트도 가능하다: `node index.js ... --goto
 ├── vision_server.py          # 비전 서버: 화면 캡처 → YOLO + CNN → WS/Flask, OpenCV HUD
 ├── train_yolo.py             # YOLO 학습 스크립트
 ├── train_cnn.py              # CNN(EfficientNet-B0) 학습 스크립트
-├── clean_dataset.py / aa.py  # 데이터셋 정리 / 증강 유틸
+├── clean_dataset.py / aug.py # 데이터셋 정리 / 증강 유틸
 ├── requirements.txt
 ├── config/
 │   └── settings.py           # 캡처 영역, 몹 위험 분류(DANGEROUS/SAFE/NEUTRAL), 임계값

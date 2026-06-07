@@ -7,13 +7,19 @@
 
 ---
 
-## 📌 데모
 
-> *(스크린샷 / GIF 자리 — 추후 첨부)*
->
-> - `docs/demo_navigation.gif` — 좌표 자율 주행
-> - `docs/demo_creeper_avoid.gif` — 경로상 크리퍼 회피 후 목적지 도달
-> - `docs/hud.png` — 비전 서버 HUD(YOLO 박스 + CNN 지형 + 로컬 그리드 미니맵)
+## 데모
+
+<p align="center">
+  <img src="assets/demo.gif" width="640" alt="ADAS 봇 몹 회피">
+</p>
+
+<table>
+  <tr>
+    <td align="center"><img src="assets/star.png" width="380"><br>출발</td>
+    <td align="center"><img src="assets/goal.png" width="380"><br>도착</td>
+  </tr>
+</table>
 
 봇은 인게임 1인칭 시점 뷰어(`http://localhost:3007`)로 주행을 관전할 수 있고,
 비전 서버의 OpenCV HUD 창에서 YOLO/CNN 인지 결과를 실시간으로 확인할 수 있다.

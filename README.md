@@ -178,6 +178,44 @@ YOLO는 화면에 잡힌 근접 몹을 **보강 신호**로 합류시킨다(좌�
 
 ---
 
+## 트러블슈팅
+
+### 봇이 두리번거리며 진동(oscillation)
+
+**증상** — 주행 중 봇이 한자리에서 좌우·전후로 두리번거리며 진동하고, 목적지로 매끄럽게 나아가지 못한다.
+
+**원인 추적 (단계별)**
+
+1. **몹 회피 진동** — A* 경로가 몹 쪽으로 재계산되면 반응형 회피가 후진으로 물러나고, 다음 틱에 A*가 다시 몹 쪽으로 경로를 잡는 반복(limit cycle)이 생긴다. 기본 회피가 후진이라 진동이 증폭됐다.
+   - 근거: `bot/navigator.js` `physicsEvade()` 주석 `[item3]` — "기본 회피 방향을 'back'(후진) 대신 측면('left')으로 둔다. 'back'은 … 진동" (현재 시그니처 기본값 `direction = 'left'`).
+   - "limit cycle"이라는 용어 자체는 코드에 없다 — 코드/README는 "진동"·"thrash"로 표기한다. (**확인 필요**)
+
+2. **지형 루프 오인 (Grid 2차 센서)** — 걸어 내려갈 수 있는 정상 내리막을 절벽으로 오인해, 50ms 주기 그리드 루프가 pathfinder 경로를 계속 끊었다.
+   - 근거: `bot/localGridMap.js` 절벽 판정 `[P2]` — "걸어 내려갈 수 있는 한두 칸 단차(완만한 내리막)는 DANGER로 잡지 않는다", `CLIFF_FALL = 3`(연속 3칸 수직 낙하만 절벽), `movements.maxDropDown = 2`. 그리드 전송 주기는 `bot/index.js`의 `setInterval(…, 50)`(50ms).
+   - 로그 마커 `terrain:65`는 코드·데모 로그에서 찾지 못했다 (**확인 필요**). 관련 지형 신호는 `localGridMap.getDangerSummary()`의 `terrain` 카운트와 `Grid: … Terrain:N` 상태 문자열에 있다.
+
+3. **근본 원인 — 50ms 반응 루프 여러 개가 각자 제어권을 가져감** — 여러 50ms 반응 루프가 각각 회피/재경로를 걸어, 한 루프의 우회 기동을 다른 루프가 끊었다. 특히 Grid 2차·API 2차 루프에는 YOLO·CNN 루프에 있던 `isBypassing` 가드가 빠져 있어 진행 중인 우회를 중단시켰다.
+   - 근거: `bot/index.js`의 V6.0 재설계 주석("pathfinder가 지형, 단일 Arbiter가 몹"). 현재는 모든 반응 결정 진입부에서 `if (navigator.isAvoiding || navigator.isBypassing || navigator.isRetreating || navigator.isFleeing) return;`로 기동 중 새 결정을 보류한다. (과거의 개별 루프 구조는 현재 코드에 남아 있지 않고 단일 Arbiter로 통합돼 있다.)
+
+4. **부수 원인**
+   - **physicsEvade 300ms 클램프**가 회피를 너무 짧게 끝냈다. `bot/navigator.js` 주석 `[P2]`: "상한을 300 → 600ms로 상향. (300ms로 깎으면 짧게 피하고 바로 플래너에 제어권을 돌려줘서 진동 주파수만 높아짐)", `const actualDuration = Math.min(durationMs, 600)`.
+   - **기본 회피가 'back'(후진)** 이라 진동을 키웠다(위 1번, 현재 기본값 측면 `'left'`).
+   - **도달 불가 목표가 무한 재경로**를 유발했다(예: 구조물 위 등 도달 불가 고도). 해결은 `bot/navigator.js` `gotoXZ()`의 `GoalNearXZ`(고도 무시, x·z만 도달). 정확한 상수 `y=255`는 코드에 없다 — 예시값으로 보인다 (**확인 필요**).
+   - **끼임 감지가 정상 정지를 오인**해 장시간 멈췄다. `bot/navigator.js`가 500ms 주기로 순(net) 진행을 추적(`_stuckMs`)하며, 로그 마커는 `freeze_start`/`freeze_end(durMs)`/`stuck_recover`(`bot/logger.js`).
+
+**해결 — 제어 흐름 재구조화**
+
+- **단일 mob-avoidance Arbiter로 통합** — 흩어진 반응 루프를 `bot/index.js`의 단일 `setInterval(…, 100)` Arbiter로 합치고 우선순위 A~F로 한 곳에서 결정한다. 진입부 가드(`isAvoiding`/`isBypassing`/`isRetreating`/`isFleeing`)와 `commit(ms)`·`committedAvoidDir()` 히스테리시스로 thrash를 막는다(`arbiterCommitted()`, `arbCommitUntil`, `lastEvadeDir` 3초 유지).
+- **지형은 pathfinder에 위임** — 물·용암·낙하는 `mineflayer-pathfinder`(`movements.maxDropDown = 2`, `blocksToAvoid`)가 처리한다. 그리드는 인지·교차검증용으로 두고, 지형 재경로는 F브랜치의 CNN+Grid '합의'(`reason: 'cnn_grid_consensus'`)일 때만 발동한다.
+- **측면 우회 + 커밋/쿨다운으로 한 번에** — `navigator.bypassMob(dir, clearance)`가 측면 호로 한 번 비킨 뒤 `goal_reached`의 `isBypassing` 분기로 원래 목적지에 복귀한다. 긴급(3블록 이내)만 `physicsEvade(dir, 600)` 즉각 반사를 쓴다.
+- **위협 비례 회피** — `bot/mobRadar.js`가 몹별 `lethal`·`clearance`를 부여한다. 치명적 몹(크리퍼 등)은 큰 반경으로 후퇴/우회(Arbiter B), 비치명 몹은 측면 한 번 우회(E).
+- **무리 중심 반대 도주** — `mobRadar.getThreatCentroid()`로 군집 중심을 구해 그 반대로 `navigator.retreatFrom()`(Arbiter A/C).
+- **체력 기반 escalation** — 체력 ≤ 11이고 가까운 몹(≤10블록)이 있으면 목표보다 생존(후퇴)을 우선한다(Arbiter A, `reason: 'health_flee'`).
+
+검증 로그 마커(`bot/logger.js`, `demos/*.log`): `reactive_decision`(reason: `health_flee`·`lethal_retreat`·`lethal_bypass`·`cluster_retreat`·`emergency_sidestep`·`mob_bypass`·`cnn_grid_consensus`), `evade_start`/`evade_end`, `bypass_start`/`bypass_end`, `retreat_start`/`retreat_end`, `freeze_start`/`freeze_end`.
+
+---
+
 ## 실행 방법
 
 ### 사전 준비

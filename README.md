@@ -11,13 +11,13 @@
 ## 데모
 
 <p align="center">
-  <img src="assets/demo.gif" width="640" alt="ADAS 봇 몹 회피">
+  <img src="picture/demo.gif" width="640" alt="ADAS 봇 몹 회피">
 </p>
 
 <table>
   <tr>
-    <td align="center"><img src="assets/start.png" width="380"><br>출발</td>
-    <td align="center"><img src="assets/goal.png" width="380"><br>도착</td>
+    <td align="center"><img src="picture/start.png" width="380"><br>출발</td>
+    <td align="center"><img src="picture/goal.png" width="380"><br>도착</td>
   </tr>
 </table>
 

@@ -1,0 +1,12 @@
+# requirements.txt
+ultralytics>=8.3.0   # YOLO26 포함
+torch>=2.0.0
+torchvision>=0.15.0
+opencv-python>=4.8.0
+mss>=9.0.0           # 고속 화면 캡처
+pyautogui>=0.9.54    # 키보드/마우스 제어
+Pillow>=10.0.0
+numpy>=1.24.0
+roboflow>=1.1.0      # 데이터셋 다운로드
+websockets>=12.0     # [V5.0] WebSocket 서버 (vision_server.py)
+flask>=3.0.0         # HTTP 보조 엔드포인트 (/collect, /health)
